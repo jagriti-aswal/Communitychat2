@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SheHealth - Anonymous Chat</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+body{font-family:'Inter',sans-serif;margin:0;display:flex;height:100vh;background:#f3e8ff;}
+.sidebar{width:250px;background:#fff;border-right:1px solid #ddd;display:flex;flex-direction:column;}
+.sidebar-header{padding:15px;font-weight:600;font-size:18px;border-bottom:1px solid #ddd;}
+.channel{padding:12px 16px;cursor:pointer;border-bottom:1px solid #f0f0f0;}
+.channel.active{background:#f3e8ff;font-weight:600;}
+.chat-container{flex:1;display:flex;flex-direction:column;}
+.chat-header{padding:15px;background:#fff;border-bottom:1px solid #ddd;font-weight:600;display:flex;justify-content:space-between;align-items:center;}
+.chat-messages{flex:1;padding:15px;overflow-y:auto;background:#fafafa;}
+.message{margin:8px 0;display:flex;}
+.message.sent{justify-content:flex-end;}
+.message.received{justify-content:flex-start;}
+.bubble{padding:10px 14px;border-radius:18px;max-width:70%;}
+.sent .bubble{background:#ff9acc;color:#fff;border-bottom-right-radius:6px;}
+.received .bubble{background:#eee;color:#333;border-bottom-left-radius:6px;}
+.chat-input-area{display:flex;padding:10px;border-top:1px solid #ddd;background:#fff;}
+.chat-input{flex:1;padding:10px;border-radius:20px;border:1px solid #ccc;}
+.send-button{margin-left:8px;padding:10px 16px;border:none;border-radius:20px;background:#ff9acc;color:#fff;cursor:pointer;}
+.ask-btn{margin-left:10px;padding:6px 12px;background:#6b46c1;color:white;border:none;border-radius:12px;cursor:pointer;font-size:14px;}
+.question-card{background:#fff0f5;padding:10px 12px;border-radius:12px;border:1px solid #d0b3ff;margin-top:4px;}
+.question-title{font-weight:600;margin-bottom:4px;}
+.question-body{font-size:14px;}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-header">💬 SheHealth Chat</div>
+  <div id="channels"></div>
+</div>
+
+<div class="chat-container">
+  <div class="chat-header" id="chatHeader">
+    <span>Anonymous Chat</span>
+    <button class="ask-btn" onclick="window.location.href='ask.html'">+ Ask a Question</button>
+  </div>
+  <div class="chat-messages" id="chatMessages"></div>
+  <div class="chat-input-area">
+    <input type="text" id="messageInput" class="chat-input" placeholder="Type your message...">
+    <button id="sendButton" class="send-button">Send</button>
+  </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+const socket = io("http://localhost:5000");
+
+const channels = [
+  { id:'mental-health', name:'Mental Health' },
+  { id:'physical-health', name:'Physical Health' },
+  { id:'life', name:'Life' },
+  { id:'career', name:'Career' },
+  { id:'spirituality', name:'Spirituality' },
+  { id:'cancer', name:'Cancer Support' }
+];
+
+let activeChannel = 'mental-health';
+let userId = localStorage.getItem('userId') || 'User_' + Math.floor(Math.random()*10000);
+localStorage.setItem('userId', userId);
+
+const chatMessages = document.getElementById("chatMessages");
+const messageInput = document.getElementById("messageInput");
+const sendButton = document.getElementById("sendButton");
+const channelsDiv = document.getElementById("channels");
+const chatHeader = document.getElementById("chatHeader");
+const messages = {};
+
+// Render channels
+channels.forEach(ch=>{
+  const div=document.createElement("div");
+  div.classList.add("channel");
+  if(ch.id===activeChannel) div.classList.add("active");
+  div.innerText=ch.name;
+  div.onclick=()=>switchChannel(ch.id,ch.name,div);
+  channelsDiv.appendChild(div);
+});
+
+function switchChannel(id,name,elem){
+  activeChannel=id;
+  chatHeader.firstElementChild.innerText=name;
+  document.querySelectorAll('.channel').forEach(ch=>ch.classList.remove('active'));
+  elem.classList.add('active');
+  socket.emit('joinRoom',id);
+  loadMessages();
+}
+
+async function loadMessages(){
+  try{
+    const res=await fetch(`/api/messages/${activeChannel}`);
+    const data=await res.json();
+    messages[activeChannel]=data.messages;
+    renderMessages();
+  }catch(e){console.error(e);}
+}
+
+function renderMessages(){
+  chatMessages.innerHTML='';
+  (messages[activeChannel]||[]).forEach(msg=>{
+    const div=document.createElement("div");
+    div.classList.add("message");
+    div.classList.add(msg.username===userId?'sent':'received');
+
+    if(msg.type==='question'){
+      div.innerHTML=`<div class="question-card"><b>${msg.username}</b>: <span class="question-title">${msg.title}</span><div class="question-body">${msg.body}</div></div>`;
+    } else {
+      div.innerHTML=`<div class="bubble"><b>${msg.username}</b>: ${msg.message}</div>`;
+    }
+
+    chatMessages.appendChild(div);
+  });
+  chatMessages.scrollTop=chatMessages.scrollHeight;
+}
+
+function sendMessage(){
+  const text=messageInput.value.trim();
+  if(!text) return;
+  const msg={username:userId,message:text,room:activeChannel,type:'message'};
+  socket.emit("sendMessage",msg);
+  messageInput.value='';
+}
+
+sendButton.addEventListener("click",sendMessage);
+messageInput.addEventListener("keypress",e=>e.key==='Enter'&&sendMessage());
+
+socket.on("receiveMessage",msg=>{
+  if(!messages[msg.room]) messages[msg.room]=[];
+  messages[msg.room].push(msg);
+  if(msg.room===activeChannel) renderMessages();
+});
+
+socket.emit('joinRoom',activeChannel);
+loadMessages();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ask a Question - SheHealth</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+body { font-family:'Inter',sans-serif; background:#f3e8ff; padding:20px; }
+.container { max-width:600px; margin:0 auto; }
+h2 { text-align:center; color:#6b46c1; margin-bottom:20px; }
+input, textarea { width:100%; padding:10px; margin-bottom:12px; border-radius:6px; border:1px solid #ccc; }
+button { background:#ff9acc; color:white; padding:10px 16px; border:none; border-radius:6px; cursor:pointer; }
+button:hover { background:#e87fa3; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h2>Ask a Question</h2>
+  <input type="text" id="questionTitle" placeholder="Question Title" required>
+  <textarea id="questionBody" placeholder="Question Details" rows="5" required></textarea>
+  <button onclick="submitQuestion()">Post Question</button>
+</div>
+
+<script>
+const userId = localStorage.getItem('userId') || 'User_' + Math.floor(Math.random()*10000);
+localStorage.setItem('userId', userId);
+
+async function submitQuestion(){
+  const title = document.getElementById('questionTitle').value.trim();
+  const body = document.getElementById('questionBody').value.trim();
+  if(!title || !body){ alert('Please fill both fields'); return; }
+
+  const res = await fetch('/api/questions', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({title, body, username:userId})
+  });
+  const data = await res.json();
+  if(data.success){
+    alert('Question posted successfully!');
+    window.location.href='question.html';
+  } else alert('Error posting question');
+}
+</script>
+
+</body>
+</html>
