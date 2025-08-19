@@ -3,249 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SheHealth - Anonymous Chat</title>
+  <title>Ask a Question - SheHealth</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: Arial, sans-serif;
       background: #f3e9fb;
-      display: flex;
-      height: 100vh;
-      overflow: hidden;
-    }
-    /* Sidebar */
-    .sidebar {
-      width: 240px;
-      background: #6d28d9;
-      color: white;
-      display: flex;
-      flex-direction: column;
       padding: 20px;
     }
-    .sidebar-header {
-      margin-bottom: 20px;
-      font-size: 20px;
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    h2 {
       text-align: center;
+      color: #6d28d9;
+      margin-bottom: 20px;
     }
-    .channel {
-      background: #7c3aed;
-      border: none;
-      padding: 12px;
-      margin: 6px 0;
+    input, textarea {
+      width: 100%;
+      padding: 14px;
+      margin-bottom: 12px;
       border-radius: 8px;
-      color: white;
-      cursor: pointer;
-      text-align: left;
-      transition: 0.2s;
-    }
-    .channel:hover {
-      background: #8b5cf6;
-    }
-    .channel.active {
-      background: #8b5cf6;
-      font-weight: bold;
-    }
-    /* Chat area */
-    .chat-container {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      background: #fdfcfe;
-    }
-    .chat-header {
-      background: #6d28d9;
-      color: white;
-      padding: 14px;
-      font-size: 18px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .chat-messages {
-      flex: 1;
-      padding: 15px;
-      overflow-y: auto;
-    }
-    .message {
-      margin: 8px 0;
-      padding: 10px 14px;
-      border-radius: 16px;
-      max-width: 70%;
-      word-wrap: break-word;
-      clear: both;
-    }
-    .message.sent {
-      background: #d8b4fe;
-      margin-left: auto;
-      text-align: right;
-    }
-    .message.received {
-      background: #ede9fe;
-      margin-right: auto;
-      text-align: left;
-    }
-    .chat-input-area {
-      display: flex;
-      border-top: 1px solid #ddd;
-      background: #fdfcfe;
-    }
-    .chat-input {
-      flex: 1;
-      padding: 14px;
       border: none;
       outline: none;
       font-size: 15px;
+      background: #ede9fe;
     }
-    .send-button {
-      background: #6d28d9;
-      border: none;
-      color: white;
-      padding: 0 20px;
-      font-size: 16px;
-      cursor: pointer;
-    }
-    .send-button:hover {
-      background: #7c3aed;
-    }
-    .ask-btn {
-      margin-left: 10px;
-      padding: 6px 12px;
+    button {
       background: #6d28d9;
       color: white;
+      padding: 14px 20px;
       border: none;
       border-radius: 8px;
       cursor: pointer;
-      font-size: 14px;
+      font-size: 16px;
     }
-    .ask-btn:hover {
+    button:hover {
       background: #7c3aed;
-    }
-    .question-card {
-      background: #fff0f5;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid #d0b3ff;
-      margin-top: 4px;
-    }
-    .question-title {
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-    .question-body {
-      font-size: 14px;
     }
   </style>
 </head>
 <body>
 
-<div class="sidebar">
-  <div class="sidebar-header">💬 SheHealth Chat</div>
-  <div id="channels"></div>
+<div class="container">
+  <h2>Ask a Question</h2>
+  <input type="text" id="questionTitle" placeholder="Question Title" required>
+  <textarea id="questionBody" placeholder="Question Details" rows="5" required></textarea>
+  <button onclick="submitQuestion()">Post Question</button>
 </div>
 
-<div class="chat-container">
-  <div class="chat-header" id="chatHeader">
-    <span>Anonymous Chat</span>
-    <button class="ask-btn" onclick="window.location.href='ask.html'">+ Ask a Question</button>
-  </div>
-  <div class="chat-messages" id="chatMessages"></div>
-  <div class="chat-input-area">
-    <input type="text" id="messageInput" class="chat-input" placeholder="Type your message...">
-    <button id="sendButton" class="send-button">Send</button>
-  </div>
-</div>
-
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
-const socket = io("http://localhost:5000");
-
-const channels = [
-  { id: 'mental-health', name: 'Mental Health' },
-  { id: 'physical-health', name: 'Physical Health' },
-  { id: 'life', name: 'Life' },
-  { id: 'career', name: 'Career' },
-  { id: 'spirituality', name: 'Spirituality' },
-  { id: 'cancer', name: 'Cancer Support' }
-];
-
-let activeChannel = 'mental-health';
-let userId = localStorage.getItem('userId') || 'User_' + Math.floor(Math.random() * 10000);
+const userId = localStorage.getItem('userId') || 'User_' + Math.floor(Math.random() * 10000);
 localStorage.setItem('userId', userId);
 
-const chatMessages = document.getElementById("chatMessages");
-const messageInput = document.getElementById("messageInput");
-const sendButton = document.getElementById("sendButton");
-const channelsDiv = document.getElementById("channels");
-const chatHeader = document.getElementById("chatHeader");
-const messages = {};
+async function submitQuestion() {
+  const title = document.getElementById('questionTitle').value.trim();
+  const body = document.getElementById('questionBody').value.trim();
+  if (!title || !body) {
+    alert('Please fill both fields');
+    return;
+  }
 
-// Render channels
-channels.forEach(ch => {
-  const div = document.createElement("div");
-  div.classList.add("channel");
-  if (ch.id === activeChannel) div.classList.add("active");
-  div.innerText = ch.name;
-  div.onclick = () => switchChannel(ch.id, ch.name, div);
-  channelsDiv.appendChild(div);
-});
-
-function switchChannel(id, name, elem) {
-  activeChannel = id;
-  chatHeader.firstElementChild.innerText = name + " Chat";
-  document.querySelectorAll('.channel').forEach(ch => ch.classList.remove('active'));
-  elem.classList.add('active');
-  socket.emit('joinRoom', id);
-  loadMessages();
-}
-
-async function loadMessages() {
   try {
-    const res = await fetch(`/api/messages/${activeChannel}`);
+    const res = await fetch('/api/questions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, username: userId })
+    });
     const data = await res.json();
-    messages[activeChannel] = data.messages;
-    renderMessages();
-  } catch (e) {
-    console.error(e);
+    if (data.success) {
+      alert('Question posted successfully!');
+      window.location.href = 'question.html';
+    } else {
+      console.error('Error posting question:', data.message);
+      alert(`Error posting question: ${data.message || 'Unknown error'}`);
+    }
+  } catch (err) {
+    console.error('Network or server error:', err);
+    alert('Failed to post question. Please check your connection and try again.');
   }
 }
-
-function renderMessages() {
-  chatMessages.innerHTML = '';
-  (messages[activeChannel] || []).forEach(msg => {
-    const div = document.createElement("div");
-    div.classList.add("message");
-    div.classList.add(msg.username === userId ? 'sent' : 'received');
-
-    if (msg.type === 'question') {
-      div.innerHTML = `<div class="question-card"><b>${msg.username}</b>: <span class="question-title">${msg.title}</span><div class="question-body">${msg.body}</div></div>`;
-    } else {
-      div.innerHTML = `<div class="message ${msg.username === userId ? 'sent' : 'received'}"><b>${msg.username}</b>: ${msg.message}</div>`;
-    }
-
-    chatMessages.appendChild(div);
-  });
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-function sendMessage() {
-  const text = messageInput.value.trim();
-  if (!text) return;
-  const msg = { username: userId, message: text, room: activeChannel, type: 'message' };
-  socket.emit("sendMessage", msg);
-  messageInput.value = '';
-}
-
-sendButton.addEventListener("click", sendMessage);
-messageInput.addEventListener("keypress", e => e.key === 'Enter' && sendMessage());
-
-socket.on("receiveMessage", msg => {
-  if (!messages[msg.room]) messages[msg.room] = [];
-  messages[msg.room].push(msg);
-  if (msg.room === activeChannel) renderMessages();
-});
-
-socket.emit('joinRoom', activeChannel);
-loadMessages();
 </script>
 
 </body>
