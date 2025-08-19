@@ -88,3 +88,303 @@ async function submitQuestion() {
 
 </body>
 </html>
+
+
+
+
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Questions - SheHealth</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3e9fb;
+      padding: 20px;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h2 {
+      text-align: center;
+      color: #6d28d9;
+      margin-bottom: 20px;
+    }
+    .question-card {
+      background: #fdfcfe;
+      padding: 15px 20px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    .question-title {
+      font-weight: 600;
+      font-size: 16px;
+      margin-bottom: 5px;
+    }
+    .question-body {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    .question-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      color: #555;
+    }
+    .upvote-btn {
+      background: #6d28d9;
+      border: none;
+      padding: 5px 12px;
+      border-radius: 8px;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .upvote-btn.upvoted {
+      background: #7c3aed;
+    }
+    .comment-count {
+      font-style: italic;
+    }
+    .back-btn {
+      display: inline-block;
+      margin-bottom: 15px;
+      padding: 6px 12px;
+      background: #6d28d9;
+      color: white;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .back-btn:hover {
+      background: #7c3aed;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <a class="back-btn" href="index.html">← Back to Chat</a>
+  <h2>Questions</h2>
+  <div id="questionsList"></div>
+</div>
+
+<script>
+const userId = localStorage.getItem('userId') || 'User_' + Math.floor(Math.random() * 10000);
+localStorage.setItem('userId', userId);
+
+async function loadQuestions() {
+  try {
+    const res = await fetch('/api/questions');
+    if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+    const data = await res.json();
+    const container = document.getElementById('questionsList');
+    container.innerHTML = '';
+
+    data.questions.forEach(q => {
+      const div = document.createElement('div');
+      div.className = 'question-card';
+      
+      const hasUpvoted = q.upvotes.includes(userId);
+      
+      div.innerHTML = `
+        <div class="question-title">${q.title}</div>
+        <div class="question-body">${q.body}</div>
+        <div class="question-meta">
+          <button class="upvote-btn ${hasUpvoted ? 'upvoted' : ''}" data-id="${q._id}">
+            ▲ Upvote (${q.upvotes.length})
+          </button>
+          <span class="comment-count">💬 ${q.comments.length} comments</span>
+        </div>
+      `;
+      
+      container.appendChild(div);
+    });
+
+    document.querySelectorAll('.upvote-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-id');
+        try {
+          const res = await fetch(`/api/questions/upvote/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId })
+          });
+          const data = await res.json();
+          if (data.success) {
+            loadQuestions();
+          } else {
+            console.error('Error upvoting:', data.message);
+            alert(`Error upvoting: ${data.message || 'Unknown error'}`);
+          }
+        } catch (err) {
+          console.error('Network or server error:', err);
+          alert('Failed to upvote. Please check your connection and try again.');
+        }
+      });
+    });
+  } catch (err) {
+    console.error('Error loading questions:', err);
+    alert('Failed to load questions. Please check your connection and try again.');
+  }
+}
+
+loadQuestions();
+</script>
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+const express = require("express");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const path = require("path");
+const http = require("http");
+const { Server } = require("socket.io");
+
+// Define Question model (assumed schema based on usage)
+const QuestionSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  body: { type: String, required: true },
+  username: { type: String, required: true },
+  upvotes: { type: [String], default: [] },
+  comments: { type: [String], default: [] },
+  timestamp: { type: Date, default: Date.now }
+});
+const Question = mongoose.model("Question", QuestionSchema);
+
+// Assume Message and Comment models exist
+const MessageSchema = new mongoose.Schema({
+  username: String,
+  message: String,
+  room: String,
+  type: String,
+  timestamp: { type: Date, default: Date.now }
+});
+const Message = mongoose.model("Message", MessageSchema);
+
+// Placeholder for Comment model (not used in provided code)
+const CommentSchema = new mongoose.Schema({
+  questionId: String,
+  username: String,
+  body: String,
+  timestamp: { type: Date, default: Date.now }
+});
+const Comment = mongoose.model("Comment", CommentSchema);
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+
+mongoose.connect("mongodb://127.0.0.1:27017/shehealth", {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log("✅ MongoDB connected"))
+.catch(err => console.error("❌ MongoDB connection error:", err));
+
+// Chat messages API
+app.get("/api/messages/:room", async (req, res) => {
+  try {
+    const messages = await Message.find({ room: req.params.room }).sort({ timestamp: 1 });
+    res.json({ messages });
+  } catch (err) {
+    console.error("Error fetching messages:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Questions API
+app.get("/api/questions", async (req, res) => {
+  try {
+    const questions = await Question.find().sort({ timestamp: -1 });
+    res.json({ questions });
+  } catch (err) {
+    console.error("Error fetching questions:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/questions", async (req, res) => {
+  try {
+    const { title, body, username } = req.body;
+    if (!title || !body || !username) {
+      return res.status(400).json({ success: false, message: "Title, body, and username are required" });
+    }
+    const question = new Question({ title, body, username });
+    await question.save();
+    res.json({ success: true, question });
+  } catch (err) {
+    console.error("Error posting question:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/questions/upvote/:id", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const question = await Question.findById(req.params.id);
+    if (!question) return res.status(404).json({ success: false, message: "Question not found" });
+    if (question.upvotes.includes(userId)) return res.status(400).json({ success: false, message: "Already upvoted" });
+    question.upvotes.push(userId);
+    await question.save();
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error upvoting question:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Serve main chat page
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
+// Socket.IO for chat
+io.on("connection", socket => {
+  console.log("🔗 New user connected:", socket.id);
+
+  socket.on("joinRoom", room => {
+    socket.join(room);
+    console.log(`User ${socket.id} joined room: ${room}`);
+  });
+
+  socket.on("sendMessage", async msg => {
+    try {
+      const messageData = new Message(msg);
+      await messageData.save();
+      io.to(msg.room).emit("receiveMessage", msg);
+    } catch (err) {
+      console.error("Error saving message:", err);
+    }
+  });
+
+  socket.on("disconnect", () => {
+    console.log("❌ User disconnected:", socket.id);
+  });
+});
+
+const PORT = 5000;
+server.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
